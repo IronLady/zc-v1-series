@@ -75,27 +75,8 @@ class Breadcrumb
                 ? '<link itemprop="url" href="' . $href . '" class="link" />' . $label
                 : '<a itemprop="url" href="' . $href . '" class="link">' . $label . '</a>';
 
-<<<<<<< HEAD
-    for ($i=0, $n=sizeof($this->_trail); $i<$n; $i++) {
-//    echo 'breadcrumb ' . $i . ' of ' . $n . ': ' . $this->_trail[$i]['title'] . '<br />';
-      $skip_link = false;
-      if ($i==($n-1) && DISABLE_BREADCRUMB_LINKS_ON_LAST_ITEM =='true') {
-        $skip_link = true;
-      }
-      if (isset($this->_trail[$i]['link']) && zen_not_null($this->_trail[$i]['link']) && !$skip_link ) {
-        // this line simply sets the "Home" link to be the domain/url, not main_page=index?blahblah:
-        if ($this->_trail[$i]['title'] == HEADER_TITLE_CATALOG) {
-          $trail_string .= '  <a href="' . ($request_type != 'SSL' ? HTTP_SERVER . DIR_WS_CATALOG : HTTPS_SERVER . DIR_WS_HTTPS_CATALOG) . '">' . $this->_trail[$i]['title'] . '</a>';
-        } else {
-          $trail_string .= '  <span itemscope itemtype="http://data-vocabulary.org/Breadcrumb"><a itemprop="url" href="' . $this->_trail[$i]['link'] . '">' . '<span itemprop="title">' . $this->_trail[$i]['title'] . '</span>' . '</a></span>';
-        }
-      } else {
-        if ($i==($n-1)) $trail_string .= '  <span itemscope itemtype="http://data-vocabulary.org/Breadcrumb"><link itemprop="url" href="' . $this->_trail[$i]['link'] . '" />' . $this->_trail[$i]['title'] . '</span>';
-      }
-=======
             $trail .= '</span>' . $separator;
         }
->>>>>>> upstream/v160
 
         return rtrim($trail, $separator) . "</nav>\n";
     }
@@ -119,13 +100,6 @@ class Breadcrumb
         return end($titles);
     }
 
-<<<<<<< HEAD
-  function last() {
-    $trail_size = sizeof($this->_trail);
-    return $this->_trail[$trail_size-1]['title'];
-  }
-}
-=======
     /**
      * @return string
      */
@@ -150,4 +124,3 @@ class Breadcrumb
         return $link;
     }
 }
->>>>>>> upstream/v160
