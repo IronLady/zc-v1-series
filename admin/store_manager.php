@@ -21,15 +21,13 @@
     case ('update_all_products_attributes_sort_order'):
       if (isset($_POST['confirm']) && $_POST['confirm'] == 'yes')
       {
-        $all_products_attributes= $db->Execute("select p.products_id, pa.products_attributes_id from " .
+        $all_products_attributes = $db->Execute("select distinct p.products_id from " .
         TABLE_PRODUCTS . " p, " .
         TABLE_PRODUCTS_ATTRIBUTES . " pa " . "
         where p.products_id= pa.products_id"
         );
         while (!$all_products_attributes->EOF)
         {
-          $count++;
-          $product_id_updated .= ' - ' . $all_products_attributes->fields['products_id'] . ':' . $all_products_attributes->fields['products_attributes_id'];
           zen_update_attributes_products_option_values_sort_order($all_products_attributes->fields['products_id']);
           $all_products_attributes->MoveNext();
         }
@@ -239,7 +237,7 @@ require('includes/admin_html_head.php');
 if ($processing_message != '') {
 ?>
   <tr><td><?php echo $processing_message; ?></td></tr>
-  <tr><td align="center"><?php echo zen_image(DIR_WS_IMAGES . 'loadingsmall.gif'); ?></td></tr>
+  <tr><td align="center"><i class="fa fa-spinner fa-spin fa-4x"></i></td></tr>
 <?php
 } else {
 ?>

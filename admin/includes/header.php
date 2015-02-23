@@ -1,7 +1,7 @@
 <?php
 /**
  * @package admin
- * @copyright Copyright 2003-2013 Zen Cart Development Team
+ * @copyright Copyright 2003-2014 Zen Cart Development Team
  * @copyright Portions Copyright 2003 osCommerce
  * @license http://www.zen-cart.com/license/2_0.txt GNU Public License V2.0
  * @version $Id: header.php 19529 2011-09-19 13:11:40Z wilt $
@@ -56,7 +56,7 @@ if ($messageStack->size > 0) {
     <td class="headerBarContent" align="left">
       <?php
       if (!$hide_languages) {
-        echo zen_draw_form('languages', zcRequest::readGet('cmd'), '', 'get');
+        echo zen_draw_form('languages', $zcRequest->readGet('cmd'), '', 'get');
         echo DEFINE_LANGUAGE . '&nbsp;&nbsp;' . (sizeof($languages) > 1 ? zen_draw_pull_down_menu('language', $languages_array, $languages_selected, 'onChange="this.form.submit();"') : '');
         echo zen_hide_session_id();
         echo zen_post_all_get_params(array('language'));
@@ -72,7 +72,7 @@ if ($messageStack->size > 0) {
     echo '&nbsp;' . date("O" , time()) . ' GMT';  // time zone
     echo '&nbsp;[' . $_SERVER['REMOTE_ADDR'] . ']'; // current admin user's IP address
     echo '<br />';
-    echo @shell_exec('hostname'); //what server am I working on?
+    echo @gethostname(); //what server am I working on?
     echo ' - ' . date_default_timezone_get(); //what is the PHP timezone set to?
     $loc = setlocale(LC_TIME, 0);
     if ($loc !== FALSE) echo ' - ' . $loc; //what is the locale in use?

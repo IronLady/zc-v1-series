@@ -4,7 +4,7 @@
  * @copyright Copyright 2003-2014 Zen Cart Development Team
  * @copyright Portions Copyright 2003 osCommerce
  * @license http://www.zen-cart.com/license/2_0.txt GNU Public License V2.0
- * @version GIT: $Id: Author: DrByte  Jun 30 2014 Modified in v1.5.4 $
+ * @version GIT: $Id: Author: Ajeh  Nov 12 2014 Modified in v1.6.0 $
  */
 
 ////
@@ -1055,11 +1055,8 @@
 
 ////
 // Sets timeout for the current script.
-// Cant be used in safe mode.
   function zen_set_time_limit($limit) {
-    if (version_compare(PHP_VERSION, 5.4, '>=') || !get_cfg_var('safe_mode')) {
-      @set_time_limit($limit);
-    }
+    @set_time_limit($limit);
   }
 
 
@@ -1166,7 +1163,6 @@
                  'db_version' => 'MySQL ' . $db->get_server_info(),
                  'db_date' => zen_datetime_short($db_query->fields['datetime']),
                  'php_memlimit' => @ini_get('memory_limit'),
-                 'php_safemode' => version_compare(PHP_VERSION, 5.4, '<') ? strtolower(@ini_get('safe_mode')) : '',
                  'php_file_uploads' => strtolower(@ini_get('file_uploads')),
                  'php_uploadmaxsize' => @ini_get('upload_max_filesize'),
                  'php_postmaxsize' => @ini_get('post_max_size'),
@@ -1503,6 +1499,9 @@ while (!$chk_sale_categories_all->EOF) {
 
     $db->Execute("delete from " . TABLE_COUPON_RESTRICT . "
                   where product_id = '" . (int)$product_id . "'");
+
+    $db->Execute("delete from " . TABLE_PRODUCTS_NOTIFICATIONS . "
+                  where products_id = '" . (int)$product_id . "'");
 
     zen_record_admin_activity('Deleted product ' . (int)$product_id . ' from database via admin console.', 'warning');
   }
@@ -2067,27 +2066,11 @@ while (!$chk_sale_categories_all->EOF) {
 /**
  * Check if product has attributes
  */
-  function zen_has_product_attributes_OLD($products_id) {
-    global $db;
-    $attributes = $db->Execute("select count(*) as count
-                         from " . TABLE_PRODUCTS_ATTRIBUTES . "
-                         where products_id = '" . (int)$products_id . "'");
-
-    if ($attributes->fields['count'] > 0) {
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-/**
- * Check if product has attributes
- */
   function zen_has_product_attributes($products_id, $not_readonly = 'true') {
     global $db;
 
     if (PRODUCTS_OPTIONS_TYPE_READONLY_IGNORED == '1' and $not_readonly == 'true') {
-      // don't include READONLY attributes to determin if attributes must be selected to add to cart
+      // don't include READONLY attributes to determine if attributes must be selected to add to cart
       $attributes_query = "select pa.products_attributes_id
                            from " . TABLE_PRODUCTS_ATTRIBUTES . " pa left join " . TABLE_PRODUCTS_OPTIONS . " po on pa.options_id = po.products_options_id
                            where pa.products_id = '" . (int)$products_id . "' and po.products_options_type != '" . PRODUCTS_OPTIONS_TYPE_READONLY . "' limit 1";
@@ -2100,11 +2083,7 @@ while (!$chk_sale_categories_all->EOF) {
 
     $attributes = $db->Execute($attributes_query);
 
-    if ($attributes->fields['products_attributes_id'] > 0) {
-      return true;
-    } else {
-      return false;
-    }
+    return !($attributes->EOF);
   }
 
 /**
@@ -2691,10 +2670,10 @@ function zen_copy_products_attributes($products_id_from, $products_id_to) {
  * check to see if free shipping rules allow the specified shipping module to be enabled or to disable it in lieu of being free
  */
   function zen_get_shipping_enabled($shipping_module) {
-    global $PHP_SELF, $order;
+    global $zcRequest;
 
     // for admin always true if installed
-    if (strstr($PHP_SELF, FILENAME_MODULES)) {
+    if (IS_ADMIN_FLAG === true && $zcRequest->readGet('cmd') == FILENAME_MODULES) {
       return true;
     }
 
@@ -2704,7 +2683,8 @@ function zen_copy_products_attributes($products_id_from, $products_id_to) {
 
     switch(true) {
       // for admin always true if installed
-      case (strstr($PHP_SELF, FILENAME_MODULES)):
+      // left for future expansion
+      case (IS_ADMIN_FLAG === true && $zcRequest->readGet('cmd') == FILENAME_MODULES):
         return true;
         break;
       // Free Shipping when 0 weight - enable freeshipper - ORDER_WEIGHT_ZERO_STATUS must be on
@@ -2713,6 +2693,12 @@ function zen_copy_products_attributes($products_id_from, $products_id_to) {
         break;
       // Free Shipping when 0 weight - disable everyone - ORDER_WEIGHT_ZERO_STATUS must be on
       case (ORDER_WEIGHT_ZERO_STATUS == '1' and ($check_cart_weight == 0 and $shipping_module != 'freeshipper')):
+        return false;
+        break;
+      case (($_SESSION['cart']->free_shipping_items() == $check_cart_cnt) and $shipping_module == 'freeshipper'):
+        return true;
+        break;
+      case (($_SESSION['cart']->free_shipping_items() == $check_cart_cnt) and $shipping_module != 'freeshipper'):
         return false;
         break;
       // Always free shipping only true - enable freeshipper
@@ -3380,7 +3366,7 @@ function zen_copy_products_attributes($products_id_from, $products_id_to) {
     $x = strval($x);
     $y = strval($y);
     $zc_round = ($x*1000)/($y*1000);
-    $zc_round_ceil = (int)($zc_round);
+    $zc_round_ceil = round($zc_round,0);
     $multiplier = $zc_round_ceil * $y;
     $results = abs(round($x - $multiplier, 6));
      return $results;
@@ -3618,3 +3604,85 @@ function zen_get_ip_address() {
   return $ip;
 }
 
+/**
+ * Perform an array multisort, based on 1 or 2 columns being passed
+ * (defaults to sorting by first column ascendingly then second column ascendingly unless otherwise specified)
+ *
+ * @param $data        multidimensional array to be sorted
+ * @param $columnName1 string representing the named column to sort by as first criteria
+ * @param $order1      either SORT_ASC or SORT_DESC (default SORT_ASC)
+ * @param $columnName2 string representing named column as second criteria
+ * @param $order2      either SORT_ASC or SORT_DESC (default SORT_ASC)
+ * @return array   Original array sorted as specified
+ */
+function zen_sort_array($data, $columnName1 = '', $order1 = SORT_ASC, $columnName2 = '', $order2 = SORT_ASC)
+{
+  // simple validations
+  $keys = array_keys($data);
+  if ($columnName1 == '') {
+    $columnName1 = $keys[0];
+  }
+  if (!in_array($order1, array(SORT_ASC, SORT_DESC))) $order1=SORT_ASC;
+  if ($columnName2 == '') {
+    $columnName2 = $keys[1];
+  }
+  if (!in_array($order2, array(SORT_ASC, SORT_DESC))) $order2=SORT_ASC;
+
+  // prepare sub-arrays for aiding in sorting
+  foreach($data as $key=>$val)
+  {
+    $sort1[] = $val[$columnName1];
+    $sort2[] = $val[$columnName2];
+  }
+  // do actual sort based on specified fields.
+  array_multisort($sort1, $order1, $sort2, $order2, $data);
+  return $data;
+}
+
+/**
+ * Obtain a list of .log/.xml files from the /logs/ folder
+ * (and also /cache/ folder for backward compatibility of older modules which store logs there)
+ *
+ * If $maxToList == 'count' then it returns the total number of files found
+ * If an integer is passed, then an array of files is returned, including paths, filenames, and datetime details
+ *
+ * @param $maxToList mixed (integer or 'count')
+ * @return array or integer
+ *
+ * inspired by log checking suggestion from Steve Sherratt (torvista)
+ */
+function get_logs_data($maxToList = 'count') {
+  if (!defined('DIR_FS_LOGS')) define('DIR_FS_LOGS', DIR_FS_CATALOG . 'logs');
+  if (!defined('DIR_FS_SQL_CACHE')) define('DIR_FS_SQL_CACHE', DIR_FS_CATALOG . 'cache');
+  $logs = array();
+  $file = array();
+  $i = 0;
+  foreach(array(DIR_FS_LOGS, DIR_FS_SQL_CACHE) as $purgeFolder) {
+    $purgeFolder = rtrim($purgeFolder, '/');
+    if (!file_exists($purgeFolder) || !is_dir($purgeFolder)) continue;
+
+    $dir = dir($purgeFolder);
+    while ($logfile = $dir->read()) {
+      if (substr($logfile, 0, 1) == '.') continue;
+      if (!preg_match('/.*(\.log|\.xml)$/', $logfile)) continue; // xml allows for usps debug
+
+      if ($maxToList != 'count') {
+        $filename = $purgeFolder . '/' . $logfile;
+        $logs[$i]['path'] = $purgeFolder . "/";
+        $logs[$i]['filename'] = $logfile;
+        $logs[$i]['filesize'] = @filesize($filename);
+        $logs[$i]['unixtime'] = @filemtime($filename);
+        $logs[$i]['datetime'] = strftime(DATE_TIME_FORMAT, $logs[$i]['unixtime']);
+      }
+      $i++;
+      if ($maxToList != 'count' && $i >= $maxToList) break;
+    }
+    $dir->close();
+    unset($dir);
+  }
+
+  if ($maxToList == 'count') return $i;
+
+  $logs = zen_sort_array($logs, 'unixtime', SORT_DESC);
+  return $logs;
+}

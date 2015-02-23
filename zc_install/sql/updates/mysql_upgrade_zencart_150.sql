@@ -68,14 +68,14 @@ ALTER TABLE admin ADD INDEX idx_admin_profile_zen (admin_profile);
 ALTER TABLE admin ADD COLUMN prev_pass1 varchar(40) NOT NULL default '';
 ALTER TABLE admin ADD COLUMN prev_pass2 varchar(40) NOT NULL default '';
 ALTER TABLE admin ADD COLUMN prev_pass3 varchar(40) NOT NULL default '';
-ALTER TABLE admin ADD COLUMN pwd_last_change_date datetime NOT NULL default '0000-00-00 00:00:00';
+ALTER TABLE admin ADD COLUMN pwd_last_change_date datetime NOT NULL default '0001-01-01 00:00:00';
 ALTER TABLE admin ADD COLUMN reset_token varchar(60) NOT NULL default '';
-ALTER TABLE admin ADD COLUMN last_modified datetime NOT NULL default '0000-00-00 00:00:00';
-ALTER TABLE admin ADD COLUMN last_login_date datetime NOT NULL default '0000-00-00 00:00:00';
+ALTER TABLE admin ADD COLUMN last_modified datetime NOT NULL default '0001-01-01 00:00:00';
+ALTER TABLE admin ADD COLUMN last_login_date datetime NOT NULL default '0001-01-01 00:00:00';
 ALTER TABLE admin ADD COLUMN last_login_ip varchar(15) NOT NULL default '';
 ALTER TABLE admin ADD COLUMN failed_logins smallint(4) unsigned NOT NULL default '0';
 ALTER TABLE admin ADD COLUMN lockout_expires int(11) NOT NULL default '0';
-ALTER TABLE admin ADD COLUMN last_failed_attempt datetime NOT NULL default '0000-00-00 00:00:00';
+ALTER TABLE admin ADD COLUMN last_failed_attempt datetime NOT NULL default '0001-01-01 00:00:00';
 ALTER TABLE admin ADD COLUMN last_failed_ip varchar(15) NOT NULL default '';
 UPDATE admin set pwd_last_change_date = now();
 ALTER TABLE admin DROP COLUMN admin_level;
@@ -138,6 +138,9 @@ CREATE TABLE admin_pages_to_profiles (
 
 # Insert default data into admin profiles table
 INSERT INTO admin_profiles (profile_id, profile_name) VALUES (1, 'Superuser');
+
+#set all users as superuser for now; can be changed manually as needed
+UPDATE admin SET admin_profile = 1;
 
 # Insert default data into admin_menus table
 INSERT INTO admin_menus (menu_key, language_key, sort_order)

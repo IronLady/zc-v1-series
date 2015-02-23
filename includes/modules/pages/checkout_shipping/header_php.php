@@ -3,7 +3,7 @@
  * Checkout Shipping Page
  *
  * @package page
- * @copyright Copyright 2003-2013 Zen Cart Development Team
+ * @copyright Copyright 2003-2015 Zen Cart Development Team
  * @copyright Portions Copyright 2003 osCommerce
  * @license http://www.zen-cart.com/license/2_0.txt GNU Public License V2.0
  * @version $Id: header_php.php 18697 2011-05-04 14:35:20Z wilt $
@@ -47,18 +47,15 @@
   if ( (STOCK_CHECK == 'true') && (STOCK_ALLOW_CHECKOUT != 'true') ) {
     $products = $_SESSION['cart']->get_products();
     for ($i=0, $n=sizeof($products); $i<$n; $i++) {
-      if (zen_check_stock($products[$i]['id'], $products[$i]['quantity'])) {
+      $qtyAvailable = zen_get_products_stock($products[$i]['id']);
+      // compare against product inventory, and against mixed=YES
+      if ($qtyAvailable - $products[$i]['quantity'] < 0 || $qtyAvailable - $_SESSION['cart']->in_cart_mixed($products[$i]['id']) < 0) {
         zen_redirect(zen_href_link(FILENAME_SHOPPING_CART));
         break;
-      } else {
-// extra check on stock for mixed YES
-        if ( zen_get_products_stock($products[$i]['id']) - $_SESSION['cart']->in_cart_mixed($products[$i]['id']) < 0) {
-          zen_redirect(zen_href_link(FILENAME_SHOPPING_CART));
-          break;
-        }
       }
     }
   }
+
 // if no shipping destination address was selected, use the customers own address as default
   if (!$_SESSION['sendto']) {
     $_SESSION['sendto'] = $_SESSION['customer_default_address_id'];
@@ -139,14 +136,14 @@ if (isset($_SESSION['cart']->cartID)) {
   require(DIR_WS_MODULES . zen_get_module_directory('require_languages.php'));
 
   if (isset($_SESSION['comments'])) {
-    $comments = $_SESSION['comments'];
+    $comments = trim($_SESSION['comments']);
   }
 
 
 // process the selected shipping method
   if ( isset($_POST['action']) && ($_POST['action'] == 'process') ) {
     if (zen_not_null($_POST['comments'])) {
-      $_SESSION['comments'] = zen_output_string_protected($_POST['comments']);
+      $_SESSION['comments'] = zen_output_string_protected(trim($_POST['comments']));
     }
     $comments = $_SESSION['comments'];
     $quote = array();
@@ -168,7 +165,7 @@ if (isset($_SESSION['cart']->cartID)) {
           } else {
             $quote = $shipping_modules->quote($method, $module);
           }
-          if (isset($quote['error'])) {
+          if (isset($quote[0]['error'])) {
             unset($_SESSION['shipping']);
           } else {
             if ( (isset($quote[0]['methods'][0]['title'])) && (isset($quote[0]['methods'][0]['cost'])) ) {
@@ -211,12 +208,11 @@ if (isset($_SESSION['cart']->cartID)) {
     }
   }
 
-// if no shipping method has been selected, automatically select the cheapest method.
-// if the modules status was changed when none were available, to save on implementing
+// If no shipping method has been selected, automatically select the cheapest method.
+// If the module's status was changed when none were available, to save on implementing
 // a javascript force-selection method, also automatically select the cheapest shipping
 // method if more than one module is now enabled
-  if ( !isset($_SESSION['shipping']) && (zen_count_shipping_modules() > 1) )  $_SESSION['shipping'] = $shipping_modules->cheapest();
-
+  if ((!isset($_SESSION['shipping']) || (!isset($_SESSION['shipping']['id']) || $_SESSION['shipping']['id'] == '') && zen_count_shipping_modules() >= 1)) $_SESSION['shipping'] = $shipping_modules->cheapest();
 
   // Should address-edit button be offered?
   $displayAddressEdit = (MAX_ADDRESS_BOOK_ENTRIES >= 2);

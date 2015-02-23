@@ -3,10 +3,10 @@
  * authorize.net AIM payment method class
  *
  * @package paymentMethod
- * @copyright Copyright 2003-2014 Zen Cart Development Team
+ * @copyright Copyright 2003-2015 Zen Cart Development Team
  * @copyright Portions Copyright 2003 osCommerce
  * @license http://www.zen-cart.com/license/2_0.txt GNU Public License V2.0
- * @version GIT: $Id: Author: DrByte  Tue Jun 3 2014 -0500 Modified in v1.5.3 $
+ * @version GIT: $Id: Author: DrByte  Tue Jun 3 2014 -0500 Modified in v1.6.0 $
  */
 /**
  * Authorize.net Payment Module (AIM version)
@@ -57,11 +57,19 @@ class authorizenet_aim extends base {
    */
   var $_logDir = '';
   /**
+   *  Emulation mode.  Is 'AIM' by default.
+   */
+  var $emulation_mode = 'AIM';
+  /**
    * communication vars
    */
   var $authorize = '';
   var $commErrNo = 0;
   var $commError = '';
+  /**
+   * this module collects card-info onsite
+   */
+  var $collectsCardDataOnsite = TRUE;
   /**
    * debug content var
    */
@@ -106,7 +114,7 @@ class authorizenet_aim extends base {
     if (IS_ADMIN_FLAG === true) $this->tableCheckup();
 
     // Determine default/supported currencies
-    if (in_array(DEFAULT_CURRENCY, array('USD', 'CAD', 'GBP', 'EUR', 'AUD'))) {
+    if (in_array(DEFAULT_CURRENCY, array('USD', 'CAD', 'GBP', 'EUR', 'AUD', 'NZD'))) {
       $this->gateway_currency = DEFAULT_CURRENCY;
     } else {
       $this->gateway_currency = 'USD';
@@ -287,6 +295,16 @@ class authorizenet_aim extends base {
 
     return $process_button_string;
   }
+  function process_button_ajax() {
+    $processButton = array('ccFields'=>array('cc_number'=>'authorizenet_aim_cc_number',
+      'cc_owner'=>'authorizenet_aim_cc_owner',
+      'cc_cvv'=>'authorizenet_aim_cc_cvv',
+      'cc_expires'=>array('name'=>'concatExpiresFields', 'args'=>"['authorizenet_aim_cc_expires_month','authorizenet_aim_cc_expires_year']"),
+      'cc_expires_month'=>'authorizenet_aim_cc_expires_month',
+      'cc_expires_year'=>'authorizenet_aim_cc_expires_year'),
+      'extraFields'=>array(zen_session_name()=>zen_session_id()));
+    return $processButton;
+  }
   /**
    * Store the CC info to the order and process any results that come back from the payment gateway
    *
@@ -381,8 +399,14 @@ class authorizenet_aim extends base {
       $submit_data['x_type'] = MODULE_PAYMENT_AUTHORIZENET_AIM_AUTHORIZATION_TYPE == 'Authorize' ? 'AUTH_ONLY': 'AUTH_CAPTURE';
     }
 
-    // force conversion to supported currencies: USD, GBP, CAD, EUR
-    if (!in_array($order->info['currency'], array('USD', 'CAD', 'GBP', 'EUR', $this->gateway_currency))) {
+    // set parameters for compatibility with 2014 API updates, to identify this transaction as ecommerce+web
+    if ($this->emulation_mode == 'AIM') {
+      $submit_data['x_device_type'] = 8;
+      $submit_data['x_market_type'] = 0;
+    }
+
+    // force conversion to supported currencies: USD, GBP, CAD, EUR, AUD, NZD
+    if (!in_array($order->info['currency'], array('USD', 'CAD', 'GBP', 'EUR', 'AUD', 'NZD', $this->gateway_currency))) {
       global $currencies;
       $submit_data['x_amount'] = number_format($order->info['total'] * $currencies->get_value($this->gateway_currency), 2);
       $submit_data['x_currency_code'] = $this->gateway_currency;
@@ -432,9 +456,12 @@ class authorizenet_aim extends base {
     }
 
     // If the response code is not 1 (approved) then redirect back to the payment page with the appropriate error message
-    if ($response_code != '1') {
+    if ($response_code != '1' && $response_code != '4') {
       $messageStack->add_session('checkout_payment', $response_msg_to_customer . ' - ' . MODULE_PAYMENT_AUTHORIZENET_AIM_TEXT_DECLINED_MESSAGE, 'error');
       zen_redirect(zen_href_link(FILENAME_CHECKOUT_PAYMENT, '', 'SSL', true, false));
+    }
+    if($response_code == '4'){
+        $this->order_status = (int)MODULE_PAYMENT_AUTHORIZENET_AIM_REVIEW_ORDER_STATUS_ID;
     }
     if ($response[88] != '') {
       $_SESSION['payment_method_messages'] = $response[88];
@@ -516,6 +543,7 @@ class authorizenet_aim extends base {
     $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, use_function, set_function, date_added) values ('Payment Zone', 'MODULE_PAYMENT_AUTHORIZENET_AIM_ZONE', '0', 'If a zone is selected, only enable this payment method for that zone.', '6', '2', 'zen_get_zone_class_title', 'zen_cfg_pull_down_zone_classes(', now())");
     $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, use_function, date_added) values ('Set Completed Order Status', 'MODULE_PAYMENT_AUTHORIZENET_AIM_ORDER_STATUS_ID', '2', 'Set the status of orders made with this payment module to this value', '6', '0', 'zen_cfg_pull_down_order_statuses(', 'zen_get_order_status_name', now())");
     $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, use_function, date_added) values ('Set Refunded Order Status', 'MODULE_PAYMENT_AUTHORIZENET_AIM_REFUNDED_ORDER_STATUS_ID', '1', 'Set the status of refunded orders to this value', '6', '0', 'zen_cfg_pull_down_order_statuses(', 'zen_get_order_status_name', now())");
+    $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, use_function, date_added) values ('Set Needed For Review Order Status', 'MODULE_PAYMENT_AUTHORIZENET_AIM_REVIEW_ORDER_STATUS_ID', '1', 'Set the status of orders made with this payment module, BUT are needing to be reviewed for processing', '6', '0', 'zen_cfg_pull_down_order_statuses(', 'zen_get_order_status_name', now())");
     $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Debug Mode', 'MODULE_PAYMENT_AUTHORIZENET_AIM_DEBUGGING', 'Off', 'Would you like to enable debug mode?  A complete detailed log of failed transactions may be emailed to the store owner.', '6', '0', 'zen_cfg_select_option(array(\'Off\', \'Log File\', \'Log and Email\'), ', now())");
   }
   /**
@@ -574,28 +602,28 @@ class authorizenet_aim extends base {
     }
 
     // set URL
+    $this->notify('NOTIFY_PAYMENT_AUTHNET_MODE_SELECTION', array(), $submit_data);
     $devurl = 'https://test.authorize.net/gateway/transact.dll';
     $certurl = 'https://certification.authorize.net/gateway/transact.dll';
-    if (defined('AUTHORIZENET_DEVELOPER_MODE')) {
-      if (AUTHORIZENET_DEVELOPER_MODE == 'on') $url = $devurl;
-      if (AUTHORIZENET_DEVELOPER_MODE == 'certify') $url = $certurl;
-    }
 
-    $this->mode = 'AIM';
-    $this->notify('NOTIFY_PAYMENT_AUTHNET_MODE_SELECTION', array(), $submit_data);
-
-    switch ($this->mode) {
+    switch ($this->emulation_mode) {
       case 'eProcessing':
         //eProcessing sometimes uses an AIM emulator, in which case if you're using this module for that purpose, use the notifier point above to have an observer class change the $class->mode to 'eProcessing', which will trigger the correct URL to be used.
         $url = 'https://www.eprocessingnetwork.com/cgi-bin/an/order.pl';
         break;
+
       case (MODULE_PAYMENT_AUTHORIZENET_AIM_DEBUGGING == 'echo'):
       case 'dump':
         $url = 'https://developer.authorize.net/param_dump.asp';
         break;
       default:
       case 'AIM':
+        $submit_data['x_solution_id'] = 'A1000003'; // used by authorize.net
         $url = 'https://secure.authorize.net/gateway/transact.dll';
+        if (defined('AUTHORIZENET_DEVELOPER_MODE')) {
+          if (AUTHORIZENET_DEVELOPER_MODE == 'on') $url = $devurl;
+          if (AUTHORIZENET_DEVELOPER_MODE == 'certify') $url = $certurl;
+        }
         break;
     }
 
@@ -635,7 +663,6 @@ class authorizenet_aim extends base {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
     curl_setopt($ch, CURLOPT_TIMEOUT, 15);
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
-    curl_setopt($ch, CURLOPT_SSLVERSION, 3);
 //   curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE); // NOTE: Leave commented-out! or set to TRUE!  This should NEVER be set to FALSE in production!!!!
 //   curl_setopt($ch, CURLOPT_CAINFO, '/local/path/to/cacert.pem'); // for offline testing, this file can be obtained from http://curl.haxx.se/docs/caextract.html ... should never be used in production!
     if (CURL_PROXY_REQUIRED == 'True') {
@@ -729,7 +756,7 @@ class authorizenet_aim extends base {
       $sql = $db->bindVars($sql, ':respCode', $response[0], 'integer');
       $sql = $db->bindVars($sql, ':respText', $db_response_text, 'string');
       $sql = $db->bindVars($sql, ':authType', $response[11], 'string');
-      $sql = $db->bindVars($sql, ':transID', $this->transaction_id, 'string');
+      $sql = $db->bindVars($sql, ':transID', $this->transaction_id, 'integer');
       $sql = $db->bindVars($sql, ':sentData', print_r($this->reportable_submit_data, true), 'string');
       $sql = $db->bindVars($sql, ':recvData', print_r($response, true), 'string');
       $sql = $db->bindVars($sql, ':orderTime', $order_time, 'string');

@@ -1057,21 +1057,6 @@ if (!defined('IS_ADMIN_FLAG')) {
 
 
 ////
-// Return a random row from a database query
-  function zen_random_select($query) {
-    global $db;
-    $random_product = '';
-    $random_query = $db->Execute($query);
-    $num_rows = $random_query->RecordCount();
-    if ($num_rows > 1) {
-      $random_row = zen_rand(0, ($num_rows - 1));
-      $random_query->Move($random_row);
-    }
-    return $random_query;
-  }
-
-
-////
 // Truncate a string
   function zen_trunc_string($str = "", $len = 150, $more = 'true') {
     if ($str == "") return $str;
@@ -1162,6 +1147,11 @@ if (!defined('IS_ADMIN_FLAG')) {
         $login_for_price = TEXT_AUTHORIZATION_PENDING_BUTTON_REPLACE;
         return $login_for_price;
         break;
+        case ((int)$_SESSION['customers_authorization'] >= 2):
+        // customer is logged in and was changed to must be approved to buy
+        $login_for_price = TEXT_AUTHORIZATION_PENDING_BUTTON_REPLACE;
+        return $login_for_price;
+        break;
         default:
         // proceed normally
         break;
@@ -1199,10 +1189,10 @@ if (!defined('IS_ADMIN_FLAG')) {
 ////
 // enable shipping
   function zen_get_shipping_enabled($shipping_module) {
-    global $PHP_SELF, $order;
+    global $zcRequest;
 
     // for admin always true if installed
-    if (strstr($PHP_SELF, FILENAME_MODULES)) {
+    if (IS_ADMIN_FLAG === true && $zcRequest->readGet('cmd') == FILENAME_MODULES) {
       return true;
     }
 
@@ -1212,7 +1202,8 @@ if (!defined('IS_ADMIN_FLAG')) {
 
     switch(true) {
       // for admin always true if installed
-      case (strstr($PHP_SELF, FILENAME_MODULES)):
+      // left for future expansion
+      case (IS_ADMIN_FLAG === true && $zcRequest->readGet('cmd') == FILENAME_MODULES):
         return true;
         break;
       // Free Shipping when 0 weight - enable freeshipper - ORDER_WEIGHT_ZERO_STATUS must be on
@@ -1369,7 +1360,7 @@ if (!defined('IS_ADMIN_FLAG')) {
     $x = strval($x);
     $y = strval($y);
     $zc_round = ($x*1000)/($y*1000);
-    $zc_round_ceil = (int)($zc_round);
+    $zc_round_ceil = round($zc_round,0);
     $multiplier = $zc_round_ceil * $y;
     $results = abs(round($x - $multiplier, 6));
      return $results;
@@ -1534,7 +1525,7 @@ if (!defined('IS_ADMIN_FLAG')) {
     $fp = @fopen($filepath, 'a');
     if ($fp) {
       @fclose($fp);
-      if ($make_unwritable) set_unwritable($filepath);
+//       if ($make_unwritable) set_unwritable($filepath);
       $fp = @fopen($filepath, 'a');
       if ($fp) {
         @fclose($fp);
