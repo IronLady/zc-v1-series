@@ -1,10 +1,10 @@
 <?php
 /**
  * @package admin
- * @copyright Copyright 2003-2014 Zen Cart Development Team
+ * @copyright Copyright 2003-2015 Zen Cart Development Team
  * @copyright Portions Copyright 2003 osCommerce
  * @license http://www.zen-cart.com/license/2_0.txt GNU Public License V2.0
- * @version $Id: invoice.php 19136 2011-07-18 16:56:18Z wilt $
+ * @version $Id: invoice.php  Modified in v1.6.0 $
 */
 
   require('includes/application_top.php');
@@ -33,14 +33,14 @@
 <html <?php echo HTML_PARAMS; ?>>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=<?php echo CHARSET; ?>">
-<title><?php echo TITLE; ?></title>
+<title><?php echo ADMIN_TITLE; ?></title>
 <link rel="stylesheet" type="text/css" href="includes/stylesheet.css">
-<script language="javascript" src="includes/menu.js"></script>
-<script language="javascript" type="text/javascript"><!--
+<script type="text/javascript" src="includes/menu.js"></script>
+<script type="text/javascript">
 function couponpopupWindow(url) {
   window.open(url,'popupWindow','toolbar=no,location=no,directories=no,status=no,menubar=no,scrollbars=yes,resizable=yes,copyhistory=no,width=450,height=280,screenX=150,screenY=150,top=150,left=150')
 }
-//--></script>
+</script>
 </head>
 <body marginwidth="0" marginheight="0" topmargin="0" bottommargin="0" leftmargin="0" rightmargin="0" bgcolor="#FFFFFF">
 
