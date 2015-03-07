@@ -4,7 +4,7 @@
  * @copyright Copyright 2003-2015 Zen Cart Development Team
  * @copyright Portions Copyright 2003 osCommerce
  * @license http://www.zen-cart.com/license/2_0.txt GNU Public License V2.0
- * @version GIT: $Id: Modified in v1.6.0 $
+ * @version $Id:  Modified in v1.6.0 $
  */
 
 ////
@@ -2516,7 +2516,7 @@ function zen_copy_products_attributes($products_id_from, $products_id_to) {
       if ($check_valid == true) {
         $valid_downloads = '';
         while (!$download_display->EOF) {
-          if (!file_exists(DIR_FS_DOWNLOAD . $download_display->fields['products_attributes_filename'])) {
+          if (!zen_verify_download_file_is_valid($download_display->fields['products_attributes_filename'])) {
             $valid_downloads .= '<br />&nbsp;&nbsp;' . zen_image(DIR_WS_IMAGES . 'icon_status_red.gif') . ' Invalid: ' . $download_display->fields['products_attributes_filename'];
             // break;
           } else {
@@ -2670,7 +2670,7 @@ function zen_copy_products_attributes($products_id_from, $products_id_to) {
     global $db;
     $configuration_query= $db->Execute("select configuration_group_title from " . TABLE_CONFIGURATION_GROUP . " where configuration_group_id ='" . (int)$lookup . "'");
     if ( $configuration_query->RecordCount() == 0 ) {
-      return (int)$lookup; 
+      return (int)$lookup;
     }
     return $configuration_query->fields['configuration_group_title'];
   }
@@ -3263,20 +3263,42 @@ function zen_copy_products_attributes($products_id_from, $products_id_to) {
 /**
  * check that the specified download filename exists on the filesystem
  */
-  function zen_orders_products_downloads($check_filename) {
-    global $db;
+  function zen_verify_download_file_is_valid($check_filename) {
+    global $zco_notifier;
 
-    $valid_downloads = true;
-    if (!defined('DIR_FS_DOWNLOAD')) define('DIR_FS_DOWNLOAD', DIR_FS_CATALOG . 'download/');
+    $handler = zen_get_download_handler($check_filename);
 
-    if (!file_exists(DIR_FS_DOWNLOAD . $check_filename)) {
-      $valid_downloads = false;
-    // break;
-    } else {
-      $valid_downloads = true;
+    if ($handler == 'local') {
+      return file_exists(DIR_FS_DOWNLOAD . $check_filename);
     }
 
-    return $valid_downloads;
+    /**
+     * An observer hooking this notifier should set $handler to blank if it tries a validation and fails.
+     * Or, if validation passes, simply set $handler to the service name (first chars before first colon in filename)
+     * Or, or there is no way to verify, do nothing to $handler.
+     */
+    $zco_notifier->notify('NOTIFY_TEST_DOWNLOADABLE_FILE_EXISTS', $check_filename, $handler);
+
+    // if handler is set but isn't local (internal) then we simply return true since there's no way to "test"
+    if ($handler != '') return true;
+
+    // else if the notifier caused $handler to be empty then that means it failed verification, so we return false
+    return false;
+  }
+
+/**
+ * check if the specified download filename matches a handler for an external download service
+ * If yes, it will be because the filename contains colons as delimiters ... service:filename:filesize
+ */
+  function zen_get_download_handler($filename) {
+    $file_parts = explode(':', $filename);
+
+    // if the filename doesn't contain any colons, then there's no delimiter to return, so must be using built-in file handling
+    if (sizeof($file_parts) < 2) {
+      return 'local';
+    }
+
+    return $file_parts[0];
   }
 
 /**
